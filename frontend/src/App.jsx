@@ -1,0 +1,29 @@
+import{useCallback,useEffect,useMemo,useState}from'react';import axios from'axios';
+const API='http://localhost:8080/api/applications',STATUSES=['Applied','Interview','Selected','Rejected'];
+const today=new Date().toLocaleDateString('en-CA');
+export default function App(){
+ const[apps,setApps]=useState([]),[total,setTotal]=useState(0),[filter,setFilter]=useState('All');
+ const[form,setForm]=useState({companyName:'',jobRole:'',applicationDate:today,status:'Applied'});
+ const[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const load=useCallback(async()=>{setLoading(true);setError('');try{const[list,count]=await Promise.all([axios.get(API,{params:filter==='All'?{}:{status:filter}}),axios.get(API+'/count')]);setApps(list.data);setTotal(count.data)}catch{setError('Could not connect to the API. Start Spring Boot on port 8080 and refresh.')}finally{setLoading(false)}},[filter]);
+ useEffect(()=>{load()},[load]);const counts=useMemo(()=>STATUSES.reduce((o,s)=>(o[s]=apps.filter(a=>a.status===s).length,o),{}),[apps]);
+ const field=e=>setForm(p=>({...p,[e.target.name]:e.target.value}));
+ async function add(e){e.preventDefault();setSaving(true);setError('');setNotice('');try{await axios.post(API,{...form,companyName:form.companyName.trim(),jobRole:form.jobRole.trim()});setForm({companyName:'',jobRole:'',applicationDate:today,status:'Applied'});setNotice('Application saved successfully.');await load()}catch(e){setError(e.response?.data?.message||'Unable to save application.')}finally{setSaving(false)}}
+ async function update(id,status){setError('');setNotice('');try{await axios.patch(`${API}/${id}/status`,{status});setNotice('Status updated.');await load()}catch(e){setError(e.response?.data?.message||'Unable to update status.')}}
+ async function remove(id){if(!window.confirm('Delete this application?'))return;try{await axios.delete(`${API}/${id}`);setNotice('Application deleted.');await load()}catch(e){setError(e.response?.data?.message||'Unable to delete application.')}}
+ return <main className="shell">
+    <header><a className="brand" href="#"><b>JT</b> JobTrack<span>.</span></a><small><i/> Your career, organized</small></header>
+ <section className="hero"><label>— &nbsp; CAREER DASHBOARD</label><h1>Make your next move<br/><em>your best move.</em></h1><p>Keep every opportunity in view. Track applications, stay on top of interviews, and see your progress at a glance.</p></section>
+ <section className="stats"><div className="stat featured"><small>TOTAL APPLICATIONS ↗</small><strong>{total}</strong><span>Opportunities tracked</span></div>{[['APPLIED','Applied'],['INTERVIEW','Interview'],['SELECTED','Selected']].map(([label,s])=><div className="stat" key={s}><small>{label}<i className={'dot '+s.toLowerCase()}/></small><strong>{counts[s]||0}</strong><span>{s==='Applied'?'In the pipeline':s==='Interview'?'Conversations ahead':'Wins to celebrate'}</span></div>)}</section>
+ <section className="layout"><aside className="panel"><div className="heading"><div><small>NEW OPPORTUNITY</small><h2>Add an application</h2></div><b className="plus">＋</b></div><p className="muted">Log a role and keep the momentum going.</p><form onSubmit={add}>
+ <label>Company name <em>*</em><input name="companyName" value={form.companyName} onChange={field} placeholder="e.g. Google" required maxLength="120"/></label>
+ <label>Job role <em>*</em><input name="jobRole" value={form.jobRole} onChange={field} placeholder="e.g. Frontend Engineer" required maxLength="120"/></label>
+ <div className="twocol"><label>Application date<input type="date" name="applicationDate" value={form.applicationDate} max={today} onChange={field} required/></label><label>Initial status<select name="status" value={form.status} onChange={field}>{STATUSES.map(s=><option key={s}>{s}</option>)}</select></label></div>
+ <button disabled={saving}>{saving?'Saving…':'Add application'} <span>↗</span></button></form><p className="hint">✳ &nbsp; Fields marked with * are required.</p></aside>
+ <section className="panel pipeline"><div className="listhead"><div><small>YOUR PIPELINE</small><h2>Applications <b>{total}</b></h2></div><label className="filter">FILTER<select value={filter} onChange={e=>setFilter(e.target.value)}><option>All</option>{STATUSES.map(s=><option key={s}>{s}</option>)}</select></label></div>
+ {error&&<div className="alert error">{error}</div>}{notice&&!error&&<div className="alert">{notice}</div>}
+ {loading?<div className="empty">Loading applications…</div>:apps.length===0?<div className="empty"><b>↗</b><h3>{filter==='All'?'Your next opportunity starts here':`No ${filter.toLowerCase()} applications`}</h3><p>{filter==='All'?'Add your first application using the form.':'Try another status filter or update an application status.'}</p></div>:
+ <div>{apps.map(a=><article className="app" key={a.id}><div className="avatar">{a.companyName.trim().charAt(0).toUpperCase()}</div><div className="appinfo"><strong>{a.companyName}</strong><span>{a.jobRole}</span><small>▦ &nbsp;{a.applicationDate}</small></div><div className="actions"><span className={'badge '+a.status.toLowerCase()}>{a.status}</span><select aria-label={'Update status for '+a.companyName} value={a.status} onChange={e=>update(a.id,e.target.value)}>{STATUSES.map(s=><option key={s}>{s}</option>)}</select><button className="delete" aria-label={'Delete '+a.companyName} onClick={()=>remove(a.id)}>×</button></div></article>)}</div>}
+ <div className="listfoot">Showing <b>{apps.length}</b> {filter==='All'?'applications':filter.toLowerCase()+' applications'}<span>UPDATED IN REAL TIME &nbsp; <i/></span></div></section></section>
+ <footer><b>JOBTRACK<span>.</span></b><span>Small steps. Big careers.</span><span>YOUR JOURNEY, IN FOCUS.</span></footer></main>
+}
